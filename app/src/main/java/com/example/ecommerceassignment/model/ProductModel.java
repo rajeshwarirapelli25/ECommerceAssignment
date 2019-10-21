@@ -55,7 +55,7 @@ public class ProductModel implements Serializable {
         this.tax_value = tax_value;
     }
 
-    class VariantModel {
+    public class VariantModel {
         private String id, color, size, price;
 
         public VariantModel() {

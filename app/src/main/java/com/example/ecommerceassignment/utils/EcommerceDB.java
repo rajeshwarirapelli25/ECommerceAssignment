@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 import com.example.ecommerceassignment.model.CategoryModel;
 import com.example.ecommerceassignment.model.ProductModel;
+import com.example.ecommerceassignment.model.RankModel;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -21,7 +22,6 @@ public class EcommerceDB extends SQLiteOpenHelper {
     public static final String TABLE_CATEGORIES = "categories";
     public static final String TABLE_PRODUCTS = "products";
     public static final String TABLE_PRODUCT_VARIANT = "product_variant";
-    public static final String TABLE_PRODUCT_TAX = "product_tax";
     public static final String TABLE_RANKING = "ranking";
 
     private SQLiteDatabase db;
@@ -29,8 +29,7 @@ public class EcommerceDB extends SQLiteOpenHelper {
     private String categories = "create table if not exists " + TABLE_CATEGORIES + " (id integer primary key, name text,parent_id int default 0 , child_categories text);";
     private String products = "create table if not exists " + TABLE_PRODUCTS + " (id integer primary key,category_id text, name text,date_added text,tax_name text,tax_value text);";
     private String product_variants = "create table if not exists " + TABLE_PRODUCT_VARIANT + " (id integer primary key,product_id text, color text, size text,price text);";
-
-//    private String ranking = "create table if not exists " + TABLE_USERDETAILS + " (userData text);";
+    private String ranking = "create table if not exists " + TABLE_RANKING + " (id integer primary key,product_id text, rank text,value text,unique(product_id,rank));";
 
     public static synchronized EcommerceDB getInstance(Context context) {
         if (ecommercedb == null)
@@ -49,6 +48,7 @@ public class EcommerceDB extends SQLiteOpenHelper {
         db.execSQL(categories);
         db.execSQL(products);
         db.execSQL(product_variants);
+        db.execSQL(ranking);
     }
 
     @Override
@@ -58,6 +58,7 @@ public class EcommerceDB extends SQLiteOpenHelper {
 
     public void insertInitialData(JSONObject respObj) {
         JSONArray categoriesArr = respObj.optJSONArray("categories");
+        JSONArray rankingArr = respObj.optJSONArray("rankings");
         db.beginTransaction();
         for (int i = 0; i < categoriesArr.length(); i++) {
             try {
@@ -115,6 +116,24 @@ public class EcommerceDB extends SQLiteOpenHelper {
                 e.printStackTrace();
             }
         }
+        for (int i = 0; i < rankingArr.length(); i++) {
+            try {
+                JSONObject rankObj = rankingArr.optJSONObject(i);
+                String rankName = rankObj.optString("ranking");
+
+                JSONArray productsArr = rankObj.optJSONArray("products");
+                for (int l = 0; l < productsArr.length(); l++) {
+                    JSONObject prodRankObj = productsArr.optJSONObject(l);
+                    ContentValues contentValues = new ContentValues();
+                    contentValues.put("product_id", prodRankObj.optString("id"));
+                    contentValues.put("rank", rankName);
+                    contentValues.put("value", prodRankObj.has("view_count") ? prodRankObj.optString("view_count") : prodRankObj.has("order_count") ? prodRankObj.optString("order_count") : prodRankObj.optString("shares"));
+                    db.insertWithOnConflict(TABLE_RANKING, null, contentValues, SQLiteDatabase.CONFLICT_IGNORE);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         db.setTransactionSuccessful();
         db.endTransaction();
     }
@@ -131,7 +150,7 @@ public class EcommerceDB extends SQLiteOpenHelper {
                     model.setId(cursor.getString(0));
                     model.setName(cursor.getString(1));
                     model.setChild_categories(getCategories(cursor.getString(0)));
-                    model.setProducts(getProducts(cursor.getString(0)));
+//                    model.setProducts(getProducts(cursor.getString(0)));
                     categoriesList.add(model);
                 } while (cursor.moveToNext());
             }
@@ -144,10 +163,17 @@ public class EcommerceDB extends SQLiteOpenHelper {
         return categoriesList;
     }
 
-    public ArrayList<ProductModel> getProducts(String id) {
+    public ArrayList<ProductModel> getProducts(String id, String sortType) {
         ArrayList<ProductModel> productList = new ArrayList<>();
-        String query = "select * from " + TABLE_PRODUCTS + " where category_id = ? ";
-        Cursor cursor = db.rawQuery(query, new String[]{id});
+        String query;
+        Cursor cursor;
+        if (sortType.isEmpty()) {
+            query = "select * from " + TABLE_PRODUCTS + " where category_id = ? ";
+            cursor = db.rawQuery(query, new String[]{id});
+        } else {
+            query = "select p.* from " + TABLE_PRODUCTS + " p," + TABLE_RANKING + " r where p.category_id = ? and (r.rank = ? and p.id = r.product_id)";
+            cursor = db.rawQuery(query, new String[]{id, sortType});
+        }
         try {
             if (cursor != null && cursor.moveToNext()) {
                 do {
@@ -157,6 +183,7 @@ public class EcommerceDB extends SQLiteOpenHelper {
                     model.setDate_added(cursor.getString(3));
                     model.setTax_name(cursor.getString(4));
                     model.setTax_value(cursor.getString(5));
+                    model.setVariants(getProductVariants(cursor.getString(0)));
                     productList.add(model);
                 } while (cursor.moveToNext());
             }
@@ -167,6 +194,53 @@ public class EcommerceDB extends SQLiteOpenHelper {
                 cursor.close();
         }
         return productList;
+    }
+
+    public ArrayList<ProductModel.VariantModel> getProductVariants(String id) {
+        ArrayList<ProductModel.VariantModel> productVariantList = new ArrayList<>();
+        String query = "select * from " + TABLE_PRODUCT_VARIANT + " where product_id = ? ";
+        Cursor cursor = db.rawQuery(query, new String[]{id});
+        try {
+            if (cursor != null && cursor.moveToNext()) {
+                do {
+                    ProductModel.VariantModel model = new ProductModel().new VariantModel();
+                    model.setId(cursor.getString(0));
+                    model.setColor(cursor.getString(2));
+                    model.setSize(cursor.getString(3));
+                    model.setPrice(cursor.getString(4));
+                    productVariantList.add(model);
+                } while (cursor.moveToNext());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
+        return productVariantList;
+    }
+
+
+    public ArrayList<RankModel> getSortOptions() {
+        ArrayList<RankModel> sortList = new ArrayList<>();
+        String query = "select distinct(rank) from " + TABLE_RANKING;
+        Cursor cursor = db.rawQuery(query, null);
+        try {
+            if (cursor != null && cursor.moveToNext()) {
+                do {
+                    RankModel model = new RankModel();
+                    model.setSelected(false);
+                    model.setRank(cursor.getString(0));
+                    sortList.add(model);
+                } while (cursor.moveToNext());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (cursor != null)
+                cursor.close();
+        }
+        return sortList;
     }
 
     public boolean checkIfRecordExists(String id) {

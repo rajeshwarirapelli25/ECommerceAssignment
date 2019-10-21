@@ -1,11 +1,15 @@
 package com.example.ecommerceassignment;
 
+import android.content.Context;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
@@ -33,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
     public ArrayList<Fragment> listBackStack;
     private FrameLayout fl_MainActivity_Container;
     private ProgressBar pbLoader;
+    private Button btnRetry;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,11 +45,29 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         networkCall = APIClient.getClient().create(APIInterface.class);
         fl_MainActivity_Container = (FrameLayout) findViewById(R.id.fl_MainActivity_Container);
+        btnRetry = (Button) findViewById(R.id.btn_retry);
         pbLoader = (ProgressBar) findViewById(R.id.pb_MainActivity_Loader);
         ecommerceDB = EcommerceDB.getInstance(this);
         listBackStack = new ArrayList<>();
         fragmentManager = getSupportFragmentManager();
-        getProductsData();
+        btnRetry.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                makeApiCallToGetData();
+            }
+        });
+        makeApiCallToGetData();
+
+    }
+
+    private void makeApiCallToGetData() {
+        if (Constant.isNetworkAvailable(this)) {
+            btnRetry.setVisibility(View.GONE);
+            getProductsData();
+        } else {
+            btnRetry.setVisibility(View.VISIBLE);
+            Toast.makeText(getApplicationContext(), "No internet connection.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void getProductsData() {
@@ -61,10 +84,12 @@ public class MainActivity extends AppCompatActivity {
                         ecommerceDB.insertInitialData(respObj);
                         displayView(Constant.DrawerMenu.CATEGORIES);
                         pbLoader.setVisibility(View.GONE);
+                        btnRetry.setVisibility(View.GONE);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 } else {
+                    pbLoader.setVisibility(View.GONE);
                     Toast.makeText(MainActivity.this, "There was some error while fetching data, please try again later.", Toast.LENGTH_SHORT).show();
                 }
 
@@ -72,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<JsonObject> call, Throwable t) {
+                pbLoader.setVisibility(View.GONE);
                 Toast.makeText(MainActivity.this, "There was some error while fetching data, please try again later.", Toast.LENGTH_SHORT).show();
             }
         });
@@ -126,5 +152,22 @@ public class MainActivity extends AppCompatActivity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_sort) {
+            return false;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_activity_menu, menu);
+        menu.findItem(R.id.action_sort).setVisible(false);
+        return super.onCreateOptionsMenu(menu);
     }
 }

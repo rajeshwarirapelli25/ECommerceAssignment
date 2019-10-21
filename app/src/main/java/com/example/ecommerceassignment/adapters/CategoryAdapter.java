@@ -62,12 +62,14 @@ public class CategoryAdapter extends MultiLevelListAdapter {
             arrowView.setVisibility(View.GONE);
         }
         if (!itemInfo.isExpandable()) {
-            llRowItem.setOnClickListener(new View.OnClickListener() {
+            llListItem.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
                     ProductsFragment fragment = new ProductsFragment();
                     Bundle bundle = new Bundle();
-                    bundle.putSerializable("productList", model.getProducts());
+//                    bundle.putSerializable("productList", model.getProducts());
+                    bundle.putSerializable("category_id", model.getId());
+
                     fragment.setArguments(bundle);
                     act.addFragment(fragment);
                 }

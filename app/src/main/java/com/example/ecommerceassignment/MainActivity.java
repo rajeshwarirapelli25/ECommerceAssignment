@@ -5,7 +5,9 @@ import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.example.ecommerceassignment.fragments.CategoriesFragment;
@@ -30,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private Fragment currentFragment;
     public ArrayList<Fragment> listBackStack;
     private FrameLayout fl_MainActivity_Container;
+    private ProgressBar pbLoader;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         networkCall = APIClient.getClient().create(APIInterface.class);
         fl_MainActivity_Container = (FrameLayout) findViewById(R.id.fl_MainActivity_Container);
+        pbLoader = (ProgressBar) findViewById(R.id.pb_MainActivity_Loader);
         ecommerceDB = EcommerceDB.getInstance(this);
         listBackStack = new ArrayList<>();
         fragmentManager = getSupportFragmentManager();
@@ -44,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void getProductsData() {
+        pbLoader.setVisibility(View.VISIBLE);
         Call<JsonObject> productCall = networkCall.getCategories();
         productCall.enqueue(new Callback<JsonObject>() {
             @Override
@@ -55,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
                         JSONObject respObj = new JSONObject(response.body().toString());
                         ecommerceDB.insertInitialData(respObj);
                         displayView(Constant.DrawerMenu.CATEGORIES);
+                        pbLoader.setVisibility(View.GONE);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
